@@ -1,51 +1,45 @@
-import os
-import pandas as pd
 import streamlit as st
+import pandas as pd
+import os
 
-st.title("Scan Arborescence Dossier 🚀")
+st.title("Recherche dans l'arborescence 🚀")
 
-# Sélection du dossier (local)
-folder = st.text_input("Chemin du dossier à scanner :", "")
+# ----- Étape 1 : Upload du fichier TXT -----
+uploaded_file = st.file_uploader("Upload ton fichier arborescence (.txt)", type=["txt"])
 
-if folder and os.path.exists(folder):
-    st.info(f"Scan de : {folder}")
+if uploaded_file is not None:
+    # Lire le fichier txt et mettre chaque ligne dans une liste
+    paths = [line.strip() for line in uploaded_file.readlines()]
     
-    def scan_folder(folder):
-        data = []
-        for dirpath, dirnames, filenames in os.walk(folder):
-            level = dirpath.replace(folder, '').count(os.sep)
-            parent = os.path.basename(os.path.dirname(dirpath)) if dirpath != folder else ""
-            data.append({
-                "Type": "Dossier",
-                "Nom": os.path.basename(dirpath),
-                "Chemin complet": dirpath,
-                "Parent": parent,
-                "Niveau": level,
-                "Taille (octets)": ""
-            })
-            for f in filenames:
-                full_path = os.path.join(dirpath, f)
-                size = os.path.getsize(full_path)
-                data.append({
-                    "Type": "Fichier",
-                    "Nom": f,
-                    "Chemin complet": full_path,
-                    "Parent": os.path.basename(dirpath),
-                    "Niveau": level + 1,
-                    "Taille (octets)": size
-                })
-        return pd.DataFrame(data)
+    # Créer un DataFrame pour manipuler plus facilement
+    df = pd.DataFrame(paths, columns=["Chemin complet"])
+    df["Nom fichier"] = df["Chemin complet"].apply(lambda x: os.path.basename(x))
     
-    df = scan_folder(folder)
-    st.dataframe(df)
+    st.success(f"{len(df)} fichiers/dossiers chargés.")
     
-    # Bouton pour télécharger en Excel
-    st.download_button(
-        label="Télécharger en Excel",
-        data=df.to_excel(index=False, engine='openpyxl'),
-        file_name="arborescence.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-else:
-    st.warning("Merci d'entrer un chemin de dossier valide")
-
+    # ----- Étape 2 : Barre de recherche -----
+    query = st.text_input("Tape les mots-clés de recherche :", "")
+    
+    if query:
+        # Séparer les mots-clés
+        keywords = query.lower().split()
+        
+        # Filtrer les fichiers qui contiennent tous les mots-clés
+        def match_keywords(filename):
+            name_lower = filename.lower()
+            return all(k in name_lower for k in keywords)
+        
+        results = df[df["Nom fichier"].apply(match_keywords)]
+        
+        st.write(f"Résultats trouvés : {len(results)}")
+        st.dataframe(results)
+        
+        # Option : télécharger les résultats en Excel
+        if not results.empty:
+            excel_bytes = results.to_excel(index=False, engine='openpyxl')
+            st.download_button(
+                label="Télécharger les résultats en Excel",
+                data=excel_bytes,
+                file_name="recherche_resultats.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
