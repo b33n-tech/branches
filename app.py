@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import io
 
 st.title("Recherche intelligente dans l'arborescence 🚀")
 
@@ -40,10 +41,13 @@ if uploaded_file is not None:
         
         # ----- Télécharger les résultats en Excel -----
         if not results.empty:
-            excel_bytes = results.to_excel(index=False, engine='openpyxl')
+            output = io.BytesIO()  # buffer mémoire
+            results.to_excel(output, index=False, engine='openpyxl')
+            output.seek(0)  # revenir au début du buffer
+
             st.download_button(
                 label="Télécharger les résultats en Excel",
-                data=excel_bytes,
+                data=output,
                 file_name="recherche_resultats.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
@@ -51,6 +55,7 @@ if uploaded_file is not None:
         # ----- Optionnel : afficher la hiérarchie légère -----
         show_hierarchy = st.checkbox("Afficher la hiérarchie légère")
         if show_hierarchy:
+            min_depth = min(path.count(os.sep) for path in results["Chemin complet"])
             for path in results["Chemin complet"]:
-                depth = path.count(os.sep) - df["Chemin complet"].min().count(os.sep)
+                depth = path.count(os.sep) - min_depth
                 st.text("    " * depth + os.path.basename(path))
