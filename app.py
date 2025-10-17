@@ -48,3 +48,4 @@ if folder and os.path.exists(folder):
     )
 else:
     st.warning("Merci d'entrer un chemin de dossier valide")
+
