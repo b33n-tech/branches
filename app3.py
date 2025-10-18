@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import io  # important pour le buffer mémoire
 
 st.title("Lecteur et recherche dans la base documentaire 📚")
 
@@ -11,7 +12,6 @@ uploaded_file = st.file_uploader(
 )
 
 if uploaded_file is not None:
-    # Détection du type de fichier et lecture
     if uploaded_file.name.endswith(".csv"):
         df = pd.read_csv(uploaded_file)
     else:  # JSON
@@ -21,7 +21,6 @@ if uploaded_file is not None:
 
     # ----- Étape 2 : Barre de recherche + filtres -----
     query = st.text_input("Recherche par mots-clés :", "")
-    st.write("Astuce : tu peux chercher des types de fichier (excel, word, pdf…) ou des mots dans la description/catégories.")
     
     # Filtre par type de fichier
     file_types = st.multiselect(
@@ -32,7 +31,6 @@ if uploaded_file is not None:
 
     results = df.copy()
     
-    # Filtrer par mots-clés dans nom ou description ou catégories
     if query:
         keywords = query.lower().split()
         def match(row):
@@ -40,36 +38,32 @@ if uploaded_file is not None:
             return all(k in text for k in keywords)
         results = results[results.apply(match, axis=1)]
     
-    # Filtrer par type de fichier
     if file_types:
         results = results[results['Nom fichier'].apply(lambda x: os.path.splitext(x)[1].lower() in file_types)]
     
     st.write(f"Résultats trouvés : {len(results)}")
-    
-    # ----- Étape 3 : Affichage tableau des résultats -----
     st.dataframe(results[['Nom fichier', 'Chemin complet', 'Catégories', 'Description']])
     
-    # ----- Étape 4 : Export -----
-    st.subheader("Exporter les résultats")
-    
+    # ----- Étape 3 : Export Excel / JSON via buffer mémoire -----
     if not results.empty:
-        # Export Excel
-        excel_buffer = pd.ExcelWriter("filtered_results.xlsx", engine='openpyxl')
-        results.to_excel(excel_buffer, index=False)
-        excel_buffer.save()
-        excel_buffer.close()
-        
+        # Excel
+        excel_buffer = io.BytesIO()
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+            results.to_excel(writer, index=False)
+        excel_buffer.seek(0)
+
         st.download_button(
             "Télécharger en Excel",
-            data=open("filtered_results.xlsx", "rb").read(),
+            data=excel_buffer,
             file_name="filtered_results.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-        
-        # Export JSON
+
+        # JSON
+        json_str = results.to_json(orient="records", indent=2)
         st.download_button(
             "Télécharger en JSON",
-            data=results.to_json(orient="records", indent=2),
+            data=json_str,
             file_name="filtered_results.json",
             mime="application/json"
         )
