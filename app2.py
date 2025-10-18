@@ -2,24 +2,20 @@ import streamlit as st
 import pandas as pd
 import os
 import io
+import json
 
-st.title("Recherche intelligente + documentation 🚀")
+st.title("Recherche intelligente + documentation JSON 🚀")
 
 # ----- Étape 1 : Upload du fichier TXT -----
 uploaded_file = st.file_uploader("Upload ton fichier arborescence (.txt)", type=["txt"])
 
 if uploaded_file is not None:
-    # Lire chaque ligne
     paths = [line.decode('utf-8').strip() if isinstance(line, bytes) else line.strip()
              for line in uploaded_file.readlines()]
     
     df = pd.DataFrame(paths, columns=["Chemin complet"])
     df["Nom fichier"] = df["Chemin complet"].apply(lambda x: os.path.basename(x) if isinstance(x, str) else "")
     df["Dossier parent"] = df["Chemin complet"].apply(lambda x: os.path.dirname(x) if isinstance(x, str) else "")
-    
-    # Colonnes pour la documentation
-    df["Catégories"] = ""
-    df["Description"] = ""
     
     st.success(f"{len(df)} fichiers/dossiers chargés.")
     
@@ -41,40 +37,31 @@ if uploaded_file is not None:
         
         results = df[df["Nom fichier"].apply(match_keywords)].copy()
         st.write(f"Résultats trouvés : {len(results)}")
-        st.dataframe(results[["Chemin complet", "Nom fichier"]])
         
-        # ----- Étape 3 : Documentation des résultats -----
-        st.subheader("Documenter les fichiers trouvés")
-        documented = []
+        # ----- Étape 3 : Sélection + documentation -----
+        st.subheader("Sélectionner les fichiers à documenter")
+        documented_data = []
         for idx, row in results.iterrows():
             st.markdown(f"**{row['Nom fichier']}**")
-            categories = st.text_input(f"Catégories / tags (1 à 3) pour {row['Nom fichier']}", key=f"cat_{idx}")
-            description = st.text_area(f"Description pour {row['Nom fichier']}", key=f"desc_{idx}")
-            if categories or description:
-                documented.append((idx, categories, description))
+            doc_checkbox = st.checkbox("Documenter ce fichier", key=f"doc_{idx}")
+            if doc_checkbox:
+                categories = st.text_input(f"Catégories / tags (1 à 3) pour {row['Nom fichier']}", key=f"cat_{idx}")
+                description = st.text_area(f"Description pour {row['Nom fichier']}", key=f"desc_{idx}")
+                documented_data.append({
+                    "Chemin complet": row["Chemin complet"],
+                    "Nom fichier": row["Nom fichier"],
+                    "Dossier parent": row["Dossier parent"],
+                    "Catégories": categories,
+                    "Description": description
+                })
         
-        # Appliquer les modifications
-        for idx, cat, desc in documented:
-            df.at[idx, "Catégories"] = cat
-            df.at[idx, "Description"] = desc
-        
-        # ----- Télécharger les résultats en Excel -----
-        if not results.empty:
-            output = io.BytesIO()
-            df.to_excel(output, index=False, engine='openpyxl')
-            output.seek(0)
-
-            st.download_button(
-                label="Télécharger l'arborescence enrichie",
-                data=output,
-                file_name="arborescence_enrichie.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-
-        # ----- Optionnel : afficher la hiérarchie légère -----
-        show_hierarchy = st.checkbox("Afficher la hiérarchie légère")
-        if show_hierarchy:
-            min_depth = min(path.count(os.sep) for path in results["Chemin complet"])
-            for path in results["Chemin complet"]:
-                depth = path.count(os.sep) - min_depth
-                st.text("    " * depth + os.path.basename(path))
+        # ----- Export JSON -----
+        if documented_data:
+            if st.button("Exporter JSON des fichiers documentés"):
+                json_data = json.dumps(documented_data, indent=2, ensure_ascii=False)
+                st.download_button(
+                    "Télécharger JSON",
+                    data=json_data,
+                    file_name="fichiers_documentes.json",
+                    mime="application/json"
+                )
