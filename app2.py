@@ -2,9 +2,8 @@ import streamlit as st
 import pandas as pd
 import os
 import io
-import json
 
-st.title("Recherche intelligente + documentation JSON 🚀")
+st.title("Recherche intelligente + documentation 🚀")
 
 # ----- Étape 1 : Upload du fichier TXT -----
 uploaded_file = st.file_uploader("Upload ton fichier arborescence (.txt)", type=["txt"])
@@ -16,6 +15,10 @@ if uploaded_file is not None:
     df = pd.DataFrame(paths, columns=["Chemin complet"])
     df["Nom fichier"] = df["Chemin complet"].apply(lambda x: os.path.basename(x) if isinstance(x, str) else "")
     df["Dossier parent"] = df["Chemin complet"].apply(lambda x: os.path.dirname(x) if isinstance(x, str) else "")
+    # Colonnes pour la documentation
+    df["Catégories"] = ""
+    df["Description"] = ""
+    df["Sélectionné"] = False  # Nouvelle colonne pour case à cocher
     
     st.success(f"{len(df)} fichiers/dossiers chargés.")
     
@@ -38,30 +41,36 @@ if uploaded_file is not None:
         results = df[df["Nom fichier"].apply(match_keywords)].copy()
         st.write(f"Résultats trouvés : {len(results)}")
         
-        # ----- Étape 3 : Sélection + documentation -----
-        st.subheader("Sélectionner les fichiers à documenter")
-        documented_data = []
+        # ----- Étape 3 : Affichage tableau + checkbox par ligne -----
+        st.subheader("Résultats et sélection pour documentation")
         for idx, row in results.iterrows():
-            st.markdown(f"**{row['Nom fichier']}**")
-            doc_checkbox = st.checkbox("Documenter ce fichier", key=f"doc_{idx}")
-            if doc_checkbox:
-                categories = st.text_input(f"Catégories / tags (1 à 3) pour {row['Nom fichier']}", key=f"cat_{idx}")
-                description = st.text_area(f"Description pour {row['Nom fichier']}", key=f"desc_{idx}")
-                documented_data.append({
-                    "Chemin complet": row["Chemin complet"],
-                    "Nom fichier": row["Nom fichier"],
-                    "Dossier parent": row["Dossier parent"],
-                    "Catégories": categories,
-                    "Description": description
-                })
+            col1, col2 = st.columns([0.1, 0.9])
+            with col1:
+                selected = st.checkbox("", key=f"select_{idx}", value=row["Sélectionné"])
+                df.at[idx, "Sélectionné"] = selected
+            with col2:
+                st.text(row["Nom fichier"])
         
-        # ----- Export JSON -----
-        if documented_data:
-            if st.button("Exporter JSON des fichiers documentés"):
-                json_data = json.dumps(documented_data, indent=2, ensure_ascii=False)
-                st.download_button(
-                    "Télécharger JSON",
-                    data=json_data,
-                    file_name="fichiers_documentes.json",
-                    mime="application/json"
-                )
+        # ----- Étape 4 : Ajouter catégories / description pour les fichiers sélectionnés -----
+        st.subheader("Documenter les fichiers sélectionnés")
+        for idx, row in df[df["Sélectionné"]].iterrows():
+            st.markdown(f"**{row['Nom fichier']}**")
+            categories = st.text_input(f"Catégories / tags (1 à 3) pour {row['Nom fichier']}", value=row["Catégories"], key=f"cat_{idx}")
+            description = st.text_area(f"Description pour {row['Nom fichier']}", value=row["Description"], key=f"desc_{idx}")
+            df.at[idx, "Catégories"] = categories
+            df.at[idx, "Description"] = description
+        
+        # ----- Étape 5 : Export JSON / Excel -----
+        if st.button("Exporter JSON/Excel des fichiers documentés"):
+            documented = df[df["Sélectionné"]].copy()
+            if not documented.empty:
+                output_csv = io.BytesIO()
+                documented.to_excel(output_csv, index=False, engine='openpyxl')
+                output_csv.seek(0)
+                
+                output_json = documented.to_json(orient="records", indent=2)
+                
+                st.download_button("Télécharger CSV", data=output_csv, file_name="documented_files.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                st.download_button("Télécharger JSON", data=output_json, file_name="documented_files.json", mime="application/json")
+            else:
+                st.warning("Aucun fichier sélectionné pour export.")
