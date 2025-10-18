@@ -2,46 +2,54 @@ import streamlit as st
 import pandas as pd
 from collections import defaultdict
 
-st.title("📂 Encodage guidé d'arborescence (Lazy Load)")
+st.title("📂 Encodage guidé d'arborescence (Lazy Load avec racine)")
 
-# 1️⃣ Upload du fichier .txt
+# 1️⃣ Définir la racine de ton scan
+ROOT = st.text_input("Chemin racine (ex: /Users/monnomid/Desktop/workshops-ecosystem-grand-est)")
+
+# 2️⃣ Upload du fichier .txt
 uploaded_file = st.file_uploader("Upload ton fichier .txt d'arborescence", type="txt")
 
-def build_hierarchy(lines):
+def build_hierarchy(lines, root_path):
     """Construit un dict hiérarchique {dossier_principal: [sous-elements]}"""
     hierarchy = defaultdict(list)
     for line in lines:
         line = line.strip()
         if not line:
             continue
-        parts = line.split("/")
-        root = parts[0]
-        hierarchy[root].append("/".join(parts[1:]) if len(parts)>1 else "")
+        # Retirer la racine
+        if root_path and line.startswith(root_path):
+            relative_path = line[len(root_path):].lstrip("/\\")
+        else:
+            relative_path = line
+        parts = relative_path.split("/")
+        root = parts[0]  # dossier principal métier
+        hierarchy[root].append("/".join(parts[1:]) if len(parts) > 1 else "")
     return hierarchy
 
-if uploaded_file:
+if uploaded_file and ROOT:
     lines = uploaded_file.read().decode("utf-8").splitlines()
     st.success(f"Fichier chargé : {len(lines)} lignes")
     
-    hierarchy = build_hierarchy(lines)
+    hierarchy = build_hierarchy(lines, ROOT)
     
-    # 2️⃣ Affichage des dossiers principaux
     selected_comments = {}
+    
+    st.subheader("Dossiers principaux de votre arborescence :")
+    
     for root, sub_items in hierarchy.items():
         if st.checkbox(f"{root}", key=root):
-            # 3️⃣ Affichage sous-dossiers/fichiers uniquement si root coché
             with st.expander(f"Voir les éléments de {root}"):
                 for idx, sub in enumerate(sub_items):
                     if sub:  # Si sous-dossier/fichier
                         full_path = f"{root}/{sub}"
                     else:
                         full_path = root
-                    # Checkbox pour chaque sous-élément
                     if st.checkbox(full_path, key=f"{root}_{idx}"):
                         comment = st.text_input(f"Commentaire pour {full_path}", key=f"comment_{root}_{idx}")
                         selected_comments[full_path] = comment
     
-    # 4️⃣ Export CSV / JSON enrichi
+    # Export CSV / JSON enrichi
     if st.button("Exporter CSV/JSON enrichi"):
         if selected_comments:
             df_export = pd.DataFrame({
