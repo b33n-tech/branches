@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
-import io  # important pour le buffer mémoire
+import io  # pour buffer mémoire
 
 st.title("Lecteur et recherche dans la base documentaire 📚")
 
@@ -19,16 +19,20 @@ if uploaded_file is not None:
     
     st.success(f"{len(df)} fichiers/dossiers chargés dans la base documentaire.")
 
-    # ----- Étape 2 : Barre de recherche + filtres -----
-    query = st.text_input("Recherche par mots-clés :", "")
-    
-    # Filtre par type de fichier
-    file_types = st.multiselect(
-        "Filtrer par type de fichier (extensions)",
-        options=sorted(df['Nom fichier'].apply(lambda x: os.path.splitext(x)[1].lower()).unique()),
-        default=[]
-    )
+    # ----- Étape 2 : Barre de recherche + filtres sur la même ligne -----
+    col1, col2 = st.columns([2, 1])  # proportion 2/3 pour mots-clés, 1/3 pour type fichier
 
+    with col1:
+        query = st.text_input("Recherche par mots-clés :", "")
+
+    with col2:
+        file_types = st.multiselect(
+            "Filtrer par type de fichier (extensions)",
+            options=sorted(df['Nom fichier'].apply(lambda x: os.path.splitext(x)[1].lower()).unique()),
+            default=[]
+        )
+
+    # ----- Étape 3 : Filtrage des résultats -----
     results = df.copy()
     
     if query:
@@ -43,8 +47,8 @@ if uploaded_file is not None:
     
     st.write(f"Résultats trouvés : {len(results)}")
     st.dataframe(results[['Nom fichier', 'Chemin complet', 'Catégories', 'Description']])
-    
-    # ----- Étape 3 : Export Excel / JSON via buffer mémoire -----
+
+    # ----- Étape 4 : Export Excel / JSON via buffer mémoire -----
     if not results.empty:
         # Excel
         excel_buffer = io.BytesIO()
