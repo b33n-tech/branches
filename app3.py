@@ -5,18 +5,21 @@ import io  # pour buffer mémoire
 
 st.title("Lecteur et recherche dans la base documentaire 📚")
 
-# ----- Étape 1 : Upload du fichier CSV/JSON -----
+# ----- Étape 1 : Upload du fichier CSV/JSON/XLSX -----
 uploaded_file = st.file_uploader(
-    "Upload ton fichier annoté (.csv ou .json)", 
-    type=["csv", "json"]
+    "Upload ton fichier annoté (.csv, .json ou .xlsx)", 
+    type=["csv", "json", "xlsx"]
 )
 
 if uploaded_file is not None:
+    # Détection du type de fichier
     if uploaded_file.name.endswith(".csv"):
         df = pd.read_csv(uploaded_file)
-    else:  # JSON
+    elif uploaded_file.name.endswith(".json"):
         df = pd.read_json(uploaded_file)
-    
+    else:  # XLSX
+        df = pd.read_excel(uploaded_file)
+
     st.success(f"{len(df)} fichiers/dossiers chargés dans la base documentaire.")
 
     # ----- Étape 2 : Barre de recherche + filtres sur la même ligne -----
@@ -50,7 +53,7 @@ if uploaded_file is not None:
 
     # ----- Étape 4 : Export Excel / JSON via buffer mémoire -----
     if not results.empty:
-        # Excel
+        # Export Excel
         excel_buffer = io.BytesIO()
         with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
             results.to_excel(writer, index=False)
@@ -63,7 +66,7 @@ if uploaded_file is not None:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
-        # JSON
+        # Export JSON
         json_str = results.to_json(orient="records", indent=2)
         st.download_button(
             "Télécharger en JSON",
